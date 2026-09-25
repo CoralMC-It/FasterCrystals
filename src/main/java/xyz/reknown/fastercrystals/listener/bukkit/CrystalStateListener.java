@@ -50,8 +50,13 @@ public class CrystalStateListener implements Listener {
     public void onEntityRemoveFromWorld(EntityRemoveFromWorldEvent event) {
         if (event.getEntityType() != EntityType.END_CRYSTAL) return;
 
-        // add delay so that it is detected as a crystal when interact happens after destruction
-        FoliaScheduler.getEntityScheduler().runDelayed(event.getEntity(), plugin, task -> crystalRepository.remove(event.getEntity().getEntityId()), null, DELAY);
+        EnderCrystal crystal = (EnderCrystal) event.getEntity();
+        int entityId = crystal.getEntityId();
+
+        // add delay so that it is detected as a crystal when interact happens after destruction.
+        // Not the entity scheduler: Folia retires it right after this event, which would drop the task and leak the
+        // crystal (and with it the crystal's whole world).
+        FoliaScheduler.getGlobalRegionScheduler().runDelayed(plugin, task -> crystalRepository.remove(entityId, crystal), DELAY);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)

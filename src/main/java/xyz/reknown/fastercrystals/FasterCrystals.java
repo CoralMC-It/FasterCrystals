@@ -19,6 +19,7 @@ package xyz.reknown.fastercrystals;
 
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.event.SimplePacketListenerAbstract;
+import io.github.retrooper.packetevents.util.folia.FoliaScheduler;
 import lombok.Getter;
 import org.bstats.bukkit.Metrics;
 import org.bukkit.Bukkit;
@@ -51,6 +52,7 @@ import java.util.Set;
 public class FasterCrystals extends JavaPlugin {
 
     private static final int B_STATS_PLUGIN_ID = 22397;
+    private static final long UNLOADED_WORLD_SWEEP_TICKS = 20L * 60;
     private static final Set<Material> AIR_TYPES = Set.of(Material.AIR, Material.CAVE_AIR, Material.VOID_AIR);
 
     @Getter
@@ -81,6 +83,10 @@ public class FasterCrystals extends JavaPlugin {
 
         getServer().getPluginManager().registerEvents(new CrystalStateListener(), this);
         getServer().getPluginManager().registerEvents(new PlayerStateListener(), this);
+        // Backstop for worlds unloaded without a WorldUnloadEvent (e.g. Canvas async unloads): each tracked crystal
+        // pins its whole world in memory until it is untracked.
+        FoliaScheduler.getGlobalRegionScheduler().runAtFixedRate(this, task -> crystalRepository.removeUnloadedWorlds(),
+                UNLOADED_WORLD_SWEEP_TICKS, UNLOADED_WORLD_SWEEP_TICKS);
 
         this.listeners = List.of(
                 new AnimationListener(),
@@ -109,6 +115,7 @@ public class FasterCrystals extends JavaPlugin {
     @Override
     public void onDisable() {
         FasterCrystalsAPI.shutdown();
+        FoliaScheduler.getGlobalRegionScheduler().cancel(this);
 
         if (this.listeners != null) {
             for (SimplePacketListenerAbstract listener : this.listeners) {

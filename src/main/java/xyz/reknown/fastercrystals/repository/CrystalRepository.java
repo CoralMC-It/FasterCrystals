@@ -17,12 +17,15 @@
 
 package xyz.reknown.fastercrystals.repository;
 
+import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.entity.EnderCrystal;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -39,6 +42,14 @@ public class CrystalRepository {
 
     public void remove(int id) {
         crystalIds.remove(id);
+    }
+
+    /**
+     * Untracks the crystal with this id only if it is still the given instance, so a delayed removal cannot drop a
+     * newer crystal that reused the id.
+     */
+    public void remove(int id, @NotNull EnderCrystal crystal) {
+        crystalIds.remove(id, crystal);
     }
 
     public boolean contains(int id) {
@@ -62,6 +73,26 @@ public class CrystalRepository {
                 return crystal.getWorld().getUID().equals(worldUid);
             } catch (Exception e) {
                 // Entity reference is no longer valid, remove it
+                return true;
+            }
+        });
+    }
+
+    /**
+     * Untracks crystals whose world is no longer loaded.
+     *
+     * <p>A tracked crystal keeps its whole world in memory. Folia forks may unload worlds asynchronously without
+     * firing {@link org.bukkit.event.world.WorldUnloadEvent}, so this sweep is the backstop for that case.</p>
+     */
+    public void removeUnloadedWorlds() {
+        Set<UUID> loaded = new HashSet<>();
+        for (World world : Bukkit.getWorlds()) {
+            loaded.add(world.getUID());
+        }
+        crystalIds.values().removeIf(crystal -> {
+            try {
+                return !loaded.contains(crystal.getWorld().getUID());
+            } catch (Exception e) {
                 return true;
             }
         });
